@@ -19,3 +19,12 @@ Thumbs.db
 appsettings.*.local.json
 *.pfx
 *.key
+
+## Logs
+Logs/
+
+## Uploaded resident files
+Uploads/
+
+## Database / file backups
+Yedekler/

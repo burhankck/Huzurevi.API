@@ -1,46 +1,67 @@
-using Huzurevi.API.Data;
-using Huzurevi.API.Models;
+using FluentValidation;
+using Huzurevi.Application.Common.Models;
+using Huzurevi.Application.Features.Odalar;
+using Huzurevi.API.Yetkilendirme;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Huzurevi.API.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
-public class OdaController : ControllerBase
+[YetkiKaynak("oda")]
+public class OdaController : TemelApiController
 {
-    private readonly AppDbContext _context;
+    private readonly IOdaServisi _odaService;
+    private readonly IValidator<OdaOlusturIstek> _createValidator;
+    private readonly IValidator<OdaGuncelleIstek> _updateValidator;
 
-    public OdaController(AppDbContext context)
+    public OdaController(
+        IOdaServisi odaService,
+        IValidator<OdaOlusturIstek> createValidator,
+        IValidator<OdaGuncelleIstek> updateValidator)
     {
-        _context = context;
+        _odaService = odaService;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Oda>>> GetOdalar()
+    [ProducesResponseType(typeof(ApiYanit<List<OdaDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOdalar(CancellationToken ct)
     {
-        return await _context.Odalar.Include(o => o.Yataklar).ToListAsync();
+        var result = await _odaService.TumunuGetirAsync(ct);
+        return Ok(result);
+    }
+
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(ApiYanit<OdaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOda(int id, CancellationToken ct)
+    {
+        var result = await _odaService.GetirAsync(id, ct);
+        return Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Oda>> PostOda(Oda oda)
+    [ProducesResponseType(typeof(ApiYanit<OdaDto>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> PostOda(OdaOlusturIstek request, CancellationToken ct)
     {
-        _context.Odalar.Add(oda);
-        await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetOdalar), new { id = oda.Id }, oda);
+        await _createValidator.ValidateAndThrowAsync(request, ct);
+        var result = await _odaService.OlusturAsync(request, ct);
+        return Created(result, "Oda eklendi.");
     }
 
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteOda(int id)
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PutOda(int id, OdaGuncelleIstek request, CancellationToken ct)
     {
-        var oda = await _context.Odalar.FindAsync(id);
-        if (oda == null) return NotFound("Oda bulunamadı.");
+        await _updateValidator.ValidateAndThrowAsync(request, ct);
+        await _odaService.GuncelleAsync(id, request, ct);
+        return Ok<object?>(null, "Oda bilgileri güncellendi.");
+    }
 
-        // Şartname Madde 4.5.17: Soft Delete
-        oda.SilindiMi = true;
-        oda.SilinmeTarihi = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteOda(int id, CancellationToken ct)
+    {
+        await _odaService.SilAsync(id, ct);
+        return Ok<object?>(null, "Oda silindi.");
     }
 }

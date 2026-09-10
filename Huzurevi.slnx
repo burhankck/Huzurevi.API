@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Huzurevi.Application/Huzurevi.Application.csproj" />
+    <Project Path="src/Huzurevi.Domain/Huzurevi.Domain.csproj" />
+    <Project Path="src/Huzurevi.Infrastructure/Huzurevi.Infrastructure.csproj" />
+  </Folder>
+  <Project Path="Huzurevi.API.csproj" />
+</Solution>

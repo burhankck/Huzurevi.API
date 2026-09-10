@@ -1,139 +1,91 @@
-# Huzurevi API
+# Huzurevi.API
 
-Huzurevi yönetim sistemi için ASP.NET Core tabanlı REST API. Oda, yatak ve sakin kayıtlarını yönetir; React arayüzü (`Huzurevi.Web`) ile CORS üzerinden konuşur.
+Huzurevi yönetim sistemi backend’i. Arayüz: [huzurevi-web](https://github.com/burhankck/huzurevi-web).
 
-## Kullanılan mimari
+ASP.NET Core 10 (`net10.0`), PostgreSQL (EF Core + Npgsql), JWT.
 
-Proje **katmanlı (N-Layer) mimari** ve **REST** prensipleriyle kurulmuştur. Veri tarafında **Entity Framework Core Code First** kullanılır.
+Geliştirme: `http://localhost:5073` — Swagger `/swagger`, health `/health`.
 
-Katmanlar şu an tek ASP.NET Core projesinin içinde klasörlerle ayrılmıştır:
+Tohum kullanıcılar: `admin` / `Admin123!` (Yönetici), `ayse` / `Personel1!`.
 
-| Katman | Klasör | Görev |
-| --- | --- | --- |
-| Sunum (API) | `Controllers/` | HTTP isteklerini karşılar, iş kurallarını uygular, JSON döner |
-| Veri erişimi | `Data/` | `AppDbContext` ile PostgreSQL'e bağlanır |
-| Domain | `Models/` | Varlıklar ve ilişkiler |
-| Şema yönetimi | `Migrations/` | Veritabanı şemasını Code First ile üretir |
+---
 
-Akış:
+## Mimari
+
+Temiz katmanlı ayrım. HTTP ince kalır; iş kuralları Application’dadır.
 
 ```
-React (Huzurevi.Web)
-        │  HTTP / JSON
-        ▼
-Controllers  →  AppDbContext (EF Core)  →  PostgreSQL
-        ▲
-        └── Models (Oda, Yatak, Sakin)
+Huzurevi.API/                      # Controllers, middleware, Program.cs
+  src/Huzurevi.Domain/             # Varlıklar
+  src/Huzurevi.Application/         # Servisler, DTO, FluentValidation, IUygulamaDbContext
+  src/Huzurevi.Infrastructure/     # EF, JWT, dosya, PDF/Excel, yedek, tohum
 ```
 
-Bu aşamada ayrı bir Repository veya Service katmanı yoktur; controller'lar `AppDbContext`'i doğrudan kullanır. Amaç, şartnamedeki temel CRUD ve iş kurallarını sade bir yapıda ayağa kaldırmaktır.
-
-## Teknolojiler
-
-- **ASP.NET Core 10** (`net10.0`) — Web API
-- **Entity Framework Core 10** — ORM, Code First
-- **PostgreSQL** — `Npgsql.EntityFrameworkCore.PostgreSQL`
-- **Swashbuckle / Swagger** — OpenAPI belgesi ve deneme arayüzü
-- **System.Text.Json** — ilişki döngülerini kırmak için `ReferenceHandler.IgnoreCycles`
-
-## Domain modeli
-
-Tüm varlıklar `TemelVarlik` sınıfından türer:
-
-- `Id`
-- `OlusturulmaTarihi`
-- `GuncellenmeTarihi`
-- `SilindiMi`
-- `SilinmeTarihi`
-
-İlişkiler:
-
 ```
-Oda (1) ──── (N) Yatak (1) ──── (0..1) Sakin
+React  →  *Controller  →  I*Servisi  →  IUygulamaDbContext  →  PostgreSQL
 ```
 
-- Bir odanın birden fazla yatağı olabilir.
-- Bir yatakta en fazla bir sakin kalabilir (`YatakId` unique).
-- Sakinin T.C. Kimlik numarası benzersizdir.
+**Bağımlılık:** API → Application + Infrastructure. Application, EF’yi arayüzle görür.
 
-## Uygulanan iş kuralları
+### Kurallar
 
-Şartname maddelerine göre şu kurallar API'de uygulanır:
+- Controller DbContext kullanmaz.
+- AutoMapper yok; DTO eşlemesi serviste.
+- JSON zarf: `{ success, message, data, errors }`. `File()` indirmeleri zarfa girmez.
+- Soft delete: `TemelVarlik.SilindiMi` + global query filter (denetim ve yedek listeleri hariç).
+- FluentValidation; `HataYonetimAraKatmani` istisnaları HTTP koduna çevirir.
+- Serilog: konsol + `Logs/` (git’te yok).
+- CORS: `ReactIzin`.
 
-- **Soft delete (4.5.17 / 4.5.37):** Kayıt fiziksel olarak silinmez. `SilindiMi = true` ve `SilinmeTarihi` set edilir. EF Core **global query filter** ile silinmiş kayıtlar listelerde görünmez.
-- **T.C. Kimlik mükerrer kayıt engeli (4.5.40):** Hem veritabanında unique index hem de `SakinController` içinde kontrol vardır.
-- **Oda kapasitesi:** Odaya eklenen yatak sayısı `Kapasite` değerini aşamaz.
-- **Yatak doluluk:** Sakin kaydı yatağa bağlanırsa yatak `DoluMu = true` olur. Sakin soft-delete edilince yatak boşaltılır.
-- **Dolu yatağa yeni sakin atanamaz.**
+### Kimlik ve yetki
 
-## API uçları
+- JWT Bearer. Rol, `Kullanici.Rol` claim’inden gelir.
+- `[YetkiKaynak("sakin")]` metodu `goruntule` / `ekle` / `duzenle` / `sil` izinlerine bağlar.
+- `Yonetici` tüm kontrolleri geçer. `Personel` sistem kaynaklarını ve bazı silmeleri almaz.
+- İzinler `IzinKatalogu`; roller ekranından atanır.
 
-Taban adres (geliştirme): `http://localhost:5073`
+### Altyapı
 
-Swagger: `http://localhost:5073/swagger`
+- Bağlantı: `ConnectionStrings:VarsayilanBaglanti` (eski ad `DefaultConnection` da okunur).
+- Açılışta `MigrateAsync` + kullanıcı/kurum tohumu.
+- `Uploads/` yerel dosya deposu.
+- PDF: QuestPDF. Excel: ClosedXML.
+- Denetim ara katmanı: işlem, servis erişimi, sağlık (KVKK) ve 500 hataları.
+- Yedek: `pg_dump` / `pg_restore` + yükleme zip. Zamanlama genel ayarlardadır.
 
-| Method | URL | Açıklama |
-| --- | --- | --- |
-| `GET` | `/api/Oda` | Odaları yataklarıyla listeler |
-| `POST` | `/api/Oda` | Yeni oda ekler |
-| `DELETE` | `/api/Oda/{id}` | Odayı soft-delete eder |
-| `GET` | `/api/Yatak` | Yatakları odasıyla listeler |
-| `POST` | `/api/Yatak` | Odaya yatak ekler (kapasite kontrolü) |
-| `GET` | `/api/Sakin` | Sakinleri yatak ve oda bilgisiyle listeler |
-| `POST` | `/api/Sakin` | Sakin ekler (T.C. ve yatak doluluk kontrolü) |
-| `DELETE` | `/api/Sakin/{id}` | Sakini soft-delete eder, yatağı boşaltır |
-
-## Klasör yapısı
-
-```
-Huzurevi.API/
-├── Controllers/
-│   ├── OdaController.cs
-│   ├── YatakController.cs
-│   └── SakinController.cs
-├── Models/
-│   ├── TemelVarlik.cs
-│   ├── Oda.cs
-│   ├── Yatak.cs
-│   └── Sakin.cs
-├── Data/
-│   ├── AppDbContext.cs
-│   └── AppDbContextFactory.cs   # EF migration'ları için design-time factory
-├── Migrations/
-│   └── 20260909162035_IlkKurulum.cs
-├── Program.cs                   # DI, CORS, Swagger, PostgreSQL
-├── appsettings.json
-└── Huzurevi.API.http            # Örnek HTTP istekleri
-```
-
-## Neler yapıldı
-
-1. ASP.NET Core Web API projesi oluşturuldu.
-2. `TemelVarlik` taban sınıfı ile ortak alanlar (id, tarihler, soft delete) merkezi hale getirildi.
-3. Oda, yatak ve sakin entity'leri ve aralarındaki ilişkiler modellendi.
-4. PostgreSQL bağlantısı ve EF Core `AppDbContext` kuruldu.
-5. T.C. Kimlik unique index ve silinmiş kayıtları gizleyen query filter eklendi.
-6. İlk migration (`IlkKurulum`) ile `Odalar`, `Yataklar`, `Sakinler` tabloları üretildi.
-7. REST controller'lar yazıldı; kapasite, mükerrer T.C. ve yatak doluluk kuralları eklendi.
-8. Swagger açıldı.
-9. React frontend'in API'ye istek atabilmesi için CORS politikası (`ReactIzin`) eklendi.
-10. JSON döngüleri (`Oda → Yatak → Oda`) `IgnoreCycles` ile engellendi.
+---
 
 ## Çalıştırma
 
-Gereksinimler:
-
-- .NET 10 SDK
-- PostgreSQL (varsayılan: `localhost:5432`, veritabanı `HuzureviDb`)
-
-Bağlantı dizesi `appsettings.json` içindeki `ConnectionStrings:VarsayilanBaglanti` alanından okunur. Kendi kullanıcı/şifrenize göre güncelleyin.
+PostgreSQL’de `HuzureviDb` oluşturun; `appsettings.json` kullanıcısını doğrulayın.
 
 ```bash
 cd Huzurevi.API
 dotnet restore
-dotnet ef database update
-dotnet run
+dotnet run --project Huzurevi.API.csproj --launch-profile http
 ```
 
-API: `http://localhost:5073`  
-Swagger: `http://localhost:5073/swagger`
+Migration:
+
+```bash
+dotnet ef migrations add Ad \
+  --project src/Huzurevi.Infrastructure/Huzurevi.Infrastructure.csproj \
+  --startup-project Huzurevi.API.csproj \
+  --output-dir Persistence/Migrations
+```
+
+Port 5073 kilitliyse dinleyen süreci kapatın.
+
+---
+
+## Modüller
+
+Sakin ve oda/yatak, ziyaret, sakin/kurum sağlık, kurum süreçleri, yemekhane, kütüphane, RBAC, liste Excel/PDF ve PDF şablon, sistem logları, yedekleme.
+
+Lisans / garanti / SQL Server şartname maddeleri bu kodda yoktur; veri katmanı PostgreSQL’dir.
+
+---
+
+## Güvenlik
+
+`appsettings.json` içindeki JWT anahtarı yerel geliştirme içindir. Canlıda anahtar ve bağlantıyı ortam değişkenine alın. `Logs/`, `Uploads/`, `Yedekler/` commit edilmez.

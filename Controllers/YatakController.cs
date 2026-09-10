@@ -1,107 +1,86 @@
-using Huzurevi.API.Data;
-using Huzurevi.API.Models;
+using FluentValidation;
+using Huzurevi.Application.Common.Models;
+using Huzurevi.Application.Features.Yataklar;
+using Huzurevi.API.Yetkilendirme;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Huzurevi.API.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
-public class YatakController : ControllerBase
+[YetkiKaynak("oda")]
+public class YatakController : TemelApiController
 {
-    private readonly AppDbContext _context;
+    private readonly IYatakServisi _yatakService;
+    private readonly IValidator<YatakOlusturIstek> _createValidator;
+    private readonly IValidator<YatakAtamaIstek> _atamaValidator;
+    private readonly IValidator<YatakBosaltIstek> _bosaltValidator;
 
-    public YatakController(AppDbContext context)
+    public YatakController(
+        IYatakServisi yatakService,
+        IValidator<YatakOlusturIstek> createValidator,
+        IValidator<YatakAtamaIstek> atamaValidator,
+        IValidator<YatakBosaltIstek> bosaltValidator)
     {
-        _context = context;
+        _yatakService = yatakService;
+        _createValidator = createValidator;
+        _atamaValidator = atamaValidator;
+        _bosaltValidator = bosaltValidator;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Yatak>>> GetYataklar()
+    [ProducesResponseType(typeof(ApiYanit<List<YatakDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetYataklar(CancellationToken ct)
     {
-        return await _context.Yataklar.Include(y => y.Oda).ToListAsync();
+        var result = await _yatakService.TumunuGetirAsync(ct);
+        return Ok(result);
     }
 
     [HttpGet("bos-yataklar")]
-    public async Task<IActionResult> GetBosYataklar()
+    [ProducesResponseType(typeof(ApiYanit<List<BosYatakDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetBosYataklar(CancellationToken ct)
     {
-        var bosYataklar = await _context.Yataklar
-            .Include(y => y.Oda)
-            .Where(y => !y.DoluMu)
-            .Select(y => new
-            {
-                y.Id,
-                y.YatakNumarasi,
-                y.OdaId,
-                OdaNumarasi = y.Oda != null ? y.Oda.OdaNumarasi : ""
-            })
-            .ToListAsync();
-
-        return Ok(bosYataklar);
+        var result = await _yatakService.BosYataklariGetirAsync(ct);
+        return Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<Yatak>> PostYatak(Yatak yatak)
+    [ProducesResponseType(typeof(ApiYanit<YatakDto>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> PostYatak(YatakOlusturIstek request, CancellationToken ct)
     {
-        var oda = await _context.Odalar.Include(o => o.Yataklar).FirstOrDefaultAsync(o => o.Id == yatak.OdaId);
-        if (oda == null) return NotFound("Bağlanmak istenen oda bulunamadı.");
+        await _createValidator.ValidateAndThrowAsync(request, ct);
+        var result = await _yatakService.OlusturAsync(request, ct);
+        return Created(result, "Yatak eklendi.");
+    }
 
-        if (oda.Yataklar.Count >= oda.Kapasite)
-            return BadRequest("Odanın yatak kapasitesi dolmuştur.");
-
-        _context.Yataklar.Add(yatak);
-        await _context.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetYataklar), new { id = yatak.Id }, yatak);
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteYatak(int id, CancellationToken ct)
+    {
+        await _yatakService.SilAsync(id, ct);
+        return Ok<object?>(null, "Yatak silindi.");
     }
 
     [HttpPost("ata")]
-    public async Task<IActionResult> YatakAta([FromBody] YatakAtamaDto dto)
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> YatakAta(YatakAtamaIstek request, CancellationToken ct)
     {
-        var yatak = await _context.Yataklar.FindAsync(dto.YatakId);
-        if (yatak == null)
-            return NotFound("Yatak bulunamadı.");
-
-        if (yatak.DoluMu)
-            return BadRequest("Bu yatak zaten dolu.");
-
-        var sakin = await _context.Sakinler.FindAsync(dto.SakinId);
-        if (sakin == null)
-            return NotFound("Sakin bulunamadı.");
-
-        yatak.SakinId = dto.SakinId;
-        yatak.DoluMu = true;
-
-        await _context.SaveChangesAsync();
-        return Ok(new { message = "Yatak başarıyla sakine tahsis edildi." });
+        await _atamaValidator.ValidateAndThrowAsync(request, ct);
+        await _yatakService.AtaAsync(request, ct);
+        return Ok<object?>(null, "Yatak başarıyla sakine tahsis edildi.");
     }
 
-    [HttpPost("bosalt/{sakinId}")]
-    public async Task<IActionResult> YatakBosalt(int sakinId)
+    [HttpPost("bosalt/{sakinId:int}")]
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> YatakBosalt(int sakinId, YatakBosaltIstek istek, CancellationToken ct)
     {
-        var yatak = await _context.Yataklar.FirstOrDefaultAsync(y => y.SakinId == sakinId);
-        var sakin = await _context.Sakinler.FindAsync(sakinId);
-
-        if (yatak == null && (sakin == null || sakin.YatakId == null))
-            return NotFound("Bu sakine ait atanmış bir yatak bulunamadı.");
-
-        if (yatak != null)
-        {
-            yatak.SakinId = null;
-            yatak.DoluMu = false;
-        }
-
-        if (sakin != null)
-        {
-            sakin.YatakId = null;
-        }
-
-        await _context.SaveChangesAsync();
-        return Ok(new { message = "Yatak başarıyla boşaltıldı." });
+        await _bosaltValidator.ValidateAndThrowAsync(istek, ct);
+        await _yatakService.BosaltAsync(sakinId, istek, ct);
+        return Ok<object?>(null, "Yatak başarıyla boşaltıldı.");
     }
-}
 
-public class YatakAtamaDto
-{
-    public int YatakId { get; set; }
-    public int SakinId { get; set; }
+    [HttpGet("sakin/{sakinId:int}/gecmis")]
+    [ProducesResponseType(typeof(ApiYanit<List<YerlesimGecmisDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetYerlesimGecmisi(int sakinId, CancellationToken ct)
+    {
+        return Ok(await _yatakService.GecmisiGetirAsync(sakinId, ct));
+    }
 }
