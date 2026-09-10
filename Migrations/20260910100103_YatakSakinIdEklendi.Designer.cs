@@ -3,6 +3,7 @@ using System;
 using Huzurevi.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Huzurevi.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260910100103_YatakSakinIdEklendi")]
+    partial class YatakSakinIdEklendi
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -107,13 +110,7 @@ namespace Huzurevi.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Telefon")
-                        .HasColumnType("text");
-
                     b.Property<int?>("YatakId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("YatakId2")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -121,7 +118,8 @@ namespace Huzurevi.API.Migrations
                     b.HasIndex("TcKimlikNo")
                         .IsUnique();
 
-                    b.HasIndex("YatakId2");
+                    b.HasIndex("YatakId")
+                        .IsUnique();
 
                     b.ToTable("Sakinler");
                 });
@@ -146,9 +144,6 @@ namespace Huzurevi.API.Migrations
                     b.Property<DateTime>("OlusturulmaTarihi")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("SakinId")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("SilindiMi")
                         .HasColumnType("boolean");
 
@@ -163,17 +158,14 @@ namespace Huzurevi.API.Migrations
 
                     b.HasIndex("OdaId");
 
-                    b.HasIndex("SakinId")
-                        .IsUnique();
-
                     b.ToTable("Yataklar");
                 });
 
             modelBuilder.Entity("Huzurevi.API.Models.Sakin", b =>
                 {
                     b.HasOne("Huzurevi.API.Models.Yatak", "Yatak")
-                        .WithMany()
-                        .HasForeignKey("YatakId2");
+                        .WithOne("Sakin")
+                        .HasForeignKey("Huzurevi.API.Models.Sakin", "YatakId");
 
                     b.Navigation("Yatak");
                 });
@@ -186,19 +178,17 @@ namespace Huzurevi.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Huzurevi.API.Models.Sakin", "Sakin")
-                        .WithOne()
-                        .HasForeignKey("Huzurevi.API.Models.Yatak", "SakinId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Oda");
-
-                    b.Navigation("Sakin");
                 });
 
             modelBuilder.Entity("Huzurevi.API.Models.Oda", b =>
                 {
                     b.Navigation("Yataklar");
+                });
+
+            modelBuilder.Entity("Huzurevi.API.Models.Yatak", b =>
+                {
+                    b.Navigation("Sakin");
                 });
 #pragma warning restore 612, 618
         }

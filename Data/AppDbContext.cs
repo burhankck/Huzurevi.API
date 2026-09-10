@@ -17,10 +17,19 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Sakin - Yatak birebir ilişki açık tanımı (Dependent: Yatak)
+        modelBuilder.Entity<Yatak>()
+            .HasOne(y => y.Sakin)
+            .WithOne()
+            .HasForeignKey<Yatak>(y => y.SakinId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // TC Kimlik No benzersizlik kuralı
         modelBuilder.Entity<Sakin>()
             .HasIndex(s => s.TcKimlikNo)
             .IsUnique();
 
+        // Soft Delete (Silindi Mi filtresi)
         modelBuilder.Entity<Oda>().HasQueryFilter(o => !o.SilindiMi);
         modelBuilder.Entity<Yatak>().HasQueryFilter(y => !y.SilindiMi);
         modelBuilder.Entity<Sakin>().HasQueryFilter(s => !s.SilindiMi);

@@ -10,5 +10,6 @@ public class Yatak : TemelVarlik
     public Oda? Oda { get; set; }
 
     // Bu yatakta kalan sakin
+    public int? SakinId { get; set; }
     public Sakin? Sakin { get; set; }
 }
