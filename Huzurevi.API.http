@@ -1,0 +1,9 @@
+@Huzurevi_HostAddress = http://localhost:5073
+
+### Tüm Odaları Getir
+GET {{Huzurevi_HostAddress}}/api/Oda
+Accept: application/json
+
+### Tüm Sakinleri Getir
+GET {{Huzurevi_HostAddress}}/api/Sakin
+Accept: application/json
