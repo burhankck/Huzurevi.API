@@ -1,3 +1,4 @@
+using Huzurevi.Application.Common;
 using Huzurevi.Application.Common.Exceptions;
 using Huzurevi.Application.Common.Interfaces;
 using Huzurevi.Domain.Entities;
@@ -16,19 +17,15 @@ public class YatakServisi : IYatakServisi
 
     public async Task<List<YatakDto>> TumunuGetirAsync(CancellationToken ct = default)
     {
-        return await _db.Yataklar
+        var kayitlar = await _db.Yataklar
             .AsNoTracking()
             .Include(y => y.Oda)
-            .OrderBy(y => y.OdaId)
+            .Include(y => y.Sakin)
+            .OrderBy(y => y.Oda != null ? y.Oda.OdaNumarasi : "")
             .ThenBy(y => y.YatakNumarasi)
-            .Select(y => new YatakDto(
-                y.Id,
-                y.YatakNumarasi,
-                y.DoluMu,
-                y.OdaId,
-                y.Oda != null ? y.Oda.OdaNumarasi : null,
-                y.SakinId))
             .ToListAsync(ct);
+
+        return kayitlar.Select(y => Map(y)).ToList();
     }
 
     public async Task<List<BosYatakDto>> BosYataklariGetirAsync(CancellationToken ct = default)
@@ -36,7 +33,7 @@ public class YatakServisi : IYatakServisi
         return await _db.Yataklar
             .AsNoTracking()
             .Include(y => y.Oda)
-            .Where(y => !y.DoluMu && y.SakinId == null && y.Oda != null && y.Oda.Durum == "Aktif")
+            .Where(y => !y.DoluMu && y.SakinId == null && y.Durum == "Aktif" && y.Oda != null && y.Oda.Durum == "Aktif")
             .OrderBy(y => y.Oda!.OdaNumarasi)
             .ThenBy(y => y.YatakNumarasi)
             .Select(y => new BosYatakDto(
@@ -72,13 +69,38 @@ public class YatakServisi : IYatakServisi
             YatakNumarasi = yatakNumarasi,
             OdaId = oda.Id,
             DoluMu = false,
+            YatakTipi = string.IsNullOrWhiteSpace(request.YatakTipi) ? "Standart" : request.YatakTipi.Trim(),
+            Ozellikler = CokluSecim.Metin(request.Ozellikler),
+            Durum = string.IsNullOrWhiteSpace(request.Durum) ? "Aktif" : request.Durum.Trim(),
             OlusturulmaTarihi = DateTime.UtcNow
         };
 
         _db.Yataklar.Add(yatak);
         await _db.SaveChangesAsync(ct);
 
-        return new YatakDto(yatak.Id, yatak.YatakNumarasi, yatak.DoluMu, yatak.OdaId, oda.OdaNumarasi, yatak.SakinId);
+        return Map(yatak, oda.OdaNumarasi);
+    }
+
+    public async Task GuncelleAsync(int id, YatakGuncelleIstek request, CancellationToken ct = default)
+    {
+        var yatak = await _db.Yataklar.Include(y => y.Oda).FirstOrDefaultAsync(y => y.Id == id, ct)
+            ?? throw new KayitBulunamadiHatasi("Yatak bulunamadı.");
+
+        var yatakNumarasi = request.YatakNumarasi.Trim();
+        var ayniYatakVarMi = await _db.Yataklar.AnyAsync(
+            y => y.OdaId == yatak.OdaId && y.Id != id && y.YatakNumarasi == yatakNumarasi,
+            ct);
+        if (ayniYatakVarMi)
+        {
+            throw new CakismaHatasi("Bu odada aynı yatak numarası zaten var.");
+        }
+
+        yatak.YatakNumarasi = yatakNumarasi;
+        yatak.YatakTipi = string.IsNullOrWhiteSpace(request.YatakTipi) ? "Standart" : request.YatakTipi.Trim();
+        yatak.Ozellikler = CokluSecim.Metin(request.Ozellikler);
+        yatak.Durum = string.IsNullOrWhiteSpace(request.Durum) ? yatak.Durum : request.Durum.Trim();
+        yatak.GuncellenmeTarihi = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task SilAsync(int id, CancellationToken ct = default)
@@ -106,6 +128,11 @@ public class YatakServisi : IYatakServisi
         if (yatak.Oda is null || yatak.Oda.Durum != "Aktif")
         {
             throw new GecersizIstekHatasi("Bakımda veya kapalı odaya sakin yerleştirilemez.");
+        }
+
+        if (yatak.Durum != "Aktif")
+        {
+            throw new GecersizIstekHatasi("Bakımda veya arızalı yatağa sakin yerleştirilemez.");
         }
 
         if (yatak.DoluMu || yatak.SakinId != null)
@@ -197,4 +224,16 @@ public class YatakServisi : IYatakServisi
             x.CikisTarihi,
             x.CikisTarihi is null)).ToList();
     }
+
+    private static YatakDto Map(Yatak yatak, string? odaNumarasi = null) => new(
+        yatak.Id,
+        yatak.YatakNumarasi,
+        yatak.DoluMu,
+        yatak.OdaId,
+        odaNumarasi ?? yatak.Oda?.OdaNumarasi,
+        yatak.SakinId,
+        yatak.Sakin is null ? null : $"{yatak.Sakin.Ad} {yatak.Sakin.Soyad}",
+        string.IsNullOrWhiteSpace(yatak.YatakTipi) ? "Standart" : yatak.YatakTipi,
+        CokluSecim.Liste(yatak.Ozellikler),
+        string.IsNullOrWhiteSpace(yatak.Durum) ? "Aktif" : yatak.Durum);
 }

@@ -64,7 +64,7 @@ public record SakinDetayDto(
     List<YakinDto> Yakinlar,
     List<SakinSurecAdimiDto> Surec);
 
-public record SakinSurecAdimiDto(string Kod, string Baslik, string Durum, string? Ozet, int? Sekme);
+public record SakinSurecAdimiDto(string Kod, string Baslik, string Durum, string? Ozet, int? Sekme, string? Rota);
 
 public record KabulMuayeneDto(
     int SakinId,

@@ -7,6 +7,7 @@ public interface IUygulamaDbContext
 {
     DbSet<Oda> Odalar { get; }
     DbSet<Yatak> Yataklar { get; }
+    DbSet<OdaBakim> OdaBakimlari { get; }
     DbSet<Sakin> Sakinler { get; }
     DbSet<IlacTakip> IlacTakipleri { get; }
     DbSet<Kullanici> Kullanicilar { get; }

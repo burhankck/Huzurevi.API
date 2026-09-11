@@ -6,7 +6,11 @@ public record YatakDto(
     bool DoluMu,
     int OdaId,
     string? OdaNumarasi,
-    int? SakinId);
+    int? SakinId,
+    string? SakinAdSoyad,
+    string YatakTipi,
+    List<string> Ozellikler,
+    string Durum);
 
 public record BosYatakDto(
     int Id,
@@ -14,7 +18,18 @@ public record BosYatakDto(
     int OdaId,
     string OdaNumarasi);
 
-public record YatakOlusturIstek(int OdaId, string YatakNumarasi);
+public record YatakOlusturIstek(
+    int OdaId,
+    string YatakNumarasi,
+    string? YatakTipi,
+    List<string>? Ozellikler,
+    string? Durum);
+
+public record YatakGuncelleIstek(
+    string YatakNumarasi,
+    string? YatakTipi,
+    List<string>? Ozellikler,
+    string? Durum);
 
 public record YatakAtamaIstek(int YatakId, int SakinId, DateTime GirisTarihi);
 

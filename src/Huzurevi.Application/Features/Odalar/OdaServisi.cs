@@ -1,3 +1,4 @@
+using Huzurevi.Application.Common;
 using Huzurevi.Application.Common.Exceptions;
 using Huzurevi.Application.Common.Interfaces;
 using Huzurevi.Domain.Entities;
@@ -40,6 +41,8 @@ public class OdaServisi : IOdaServisi
             Kapasite = request.Kapasite,
             Durum = "Aktif",
             OdaTipi = string.IsNullOrWhiteSpace(request.OdaTipi) ? "Standart" : request.OdaTipi.Trim(),
+            Ozellikler = CokluSecim.Metin(request.Ozellikler),
+            Notlar = string.IsNullOrWhiteSpace(request.Notlar) ? null : request.Notlar.Trim(),
             OlusturulmaTarihi = DateTime.UtcNow
         };
 
@@ -49,6 +52,8 @@ public class OdaServisi : IOdaServisi
             {
                 YatakNumarasi = i.ToString(),
                 DoluMu = false,
+                YatakTipi = "Standart",
+                Durum = "Aktif",
                 OlusturulmaTarihi = DateTime.UtcNow
             });
         }
@@ -82,6 +87,8 @@ public class OdaServisi : IOdaServisi
         oda.Kapasite = request.Kapasite;
         oda.Durum = string.IsNullOrWhiteSpace(request.Durum) ? oda.Durum : request.Durum.Trim();
         oda.OdaTipi = string.IsNullOrWhiteSpace(request.OdaTipi) ? oda.OdaTipi : request.OdaTipi.Trim();
+        oda.Ozellikler = CokluSecim.Metin(request.Ozellikler);
+        oda.Notlar = string.IsNullOrWhiteSpace(request.Notlar) ? null : request.Notlar.Trim();
         oda.GuncellenmeTarihi = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -155,12 +162,17 @@ public class OdaServisi : IOdaServisi
             oda.Kapasite,
             oda.Durum,
             oda.OdaTipi,
+            CokluSecim.Liste(oda.Ozellikler),
+            oda.Notlar,
             yataklar.Count,
             yataklar.Count(y => y.DoluMu || y.SakinId != null),
             yataklar.Select(y => new YatakOzetDto(
                 y.Id,
                 y.YatakNumarasi,
                 y.DoluMu,
+                string.IsNullOrWhiteSpace(y.YatakTipi) ? "Standart" : y.YatakTipi,
+                CokluSecim.Liste(y.Ozellikler),
+                string.IsNullOrWhiteSpace(y.Durum) ? "Aktif" : y.Durum,
                 y.Sakin == null
                     ? null
                     : new SakinOzetDto(y.Sakin.Id, $"{y.Sakin.Ad} {y.Sakin.Soyad}", y.Sakin.TcKimlikNo)))

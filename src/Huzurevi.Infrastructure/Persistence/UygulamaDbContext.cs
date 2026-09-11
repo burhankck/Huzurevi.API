@@ -17,6 +17,7 @@ public class UygulamaDbContext : DbContext, IUygulamaDbContext
 
     public DbSet<Oda> Odalar => Set<Oda>();
     public DbSet<Yatak> Yataklar => Set<Yatak>();
+    public DbSet<OdaBakim> OdaBakimlari => Set<OdaBakim>();
     public DbSet<Sakin> Sakinler => Set<Sakin>();
     public DbSet<IlacTakip> IlacTakipleri => Set<IlacTakip>();
     public DbSet<Kullanici> Kullanicilar => Set<Kullanici>();
@@ -91,6 +92,10 @@ public class UygulamaDbContext : DbContext, IUygulamaDbContext
             entity.Property(o => o.Blok).HasMaxLength(50);
             entity.Property(o => o.Durum).IsRequired().HasMaxLength(20);
             entity.Property(o => o.OdaTipi).HasMaxLength(30);
+            entity.Property(o => o.Ozellikler).HasMaxLength(300);
+            entity.Property(o => o.Notlar).HasMaxLength(500);
+            entity.HasIndex(o => o.Durum);
+            entity.HasIndex(o => new { o.Blok, o.Kat });
         });
 
         modelBuilder.Entity<Yatak>(entity =>
@@ -106,6 +111,29 @@ public class UygulamaDbContext : DbContext, IUygulamaDbContext
                 .HasForeignKey<Yatak>(y => y.SakinId)
                 .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(y => y.SakinId).IsUnique();
+            entity.HasIndex(y => new { y.OdaId, y.DoluMu });
+            entity.Property(y => y.YatakNumarasi).IsRequired().HasMaxLength(50);
+            entity.Property(y => y.YatakTipi).HasMaxLength(40);
+            entity.Property(y => y.Ozellikler).HasMaxLength(300);
+            entity.Property(y => y.Durum).IsRequired().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<OdaBakim>(entity =>
+        {
+            entity.ToTable("OdaBakimlari");
+            entity.HasQueryFilter(x => !x.SilindiMi);
+            entity.HasOne(x => x.Oda)
+                .WithMany(o => o.Bakimlar)
+                .HasForeignKey(x => x.OdaId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Personel)
+                .WithMany()
+                .HasForeignKey(x => x.PersonelId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(x => new { x.OdaId, x.BakimTarihi });
+            entity.Property(x => x.BakimTuru).IsRequired().HasMaxLength(40);
+            entity.Property(x => x.Not).HasMaxLength(500);
+            entity.Property(x => x.Maliyet).HasPrecision(12, 2);
         });
 
         modelBuilder.Entity<Sakin>(entity =>
@@ -126,6 +154,8 @@ public class UygulamaDbContext : DbContext, IUygulamaDbContext
             entity.HasIndex(s => s.KayitNo)
                 .IsUnique()
                 .HasFilter("\"SilindiMi\" = FALSE AND \"KayitNo\" IS NOT NULL");
+            entity.HasIndex(s => s.Durum);
+            entity.HasIndex(s => new { s.Ad, s.Soyad });
             entity.Property(s => s.BabaAdi).HasMaxLength(100);
             entity.Property(s => s.AnaAdi).HasMaxLength(100);
             entity.Property(s => s.OgrenimDurumu).HasMaxLength(40);

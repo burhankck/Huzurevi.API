@@ -27,6 +27,7 @@ public static class BagimlilikEnjeksiyonu
         services.AddValidatorsFromAssemblyContaining(typeof(BagimlilikEnjeksiyonu));
 
         services.AddScoped<IOdaServisi, OdaServisi>();
+        services.AddScoped<IOdaBakimServisi, OdaBakimServisi>();
         services.AddScoped<IYatakServisi, YatakServisi>();
         services.AddScoped<ISakinServisi, SakinServisi>();
         services.AddScoped<IIlacTakipServisi, IlacTakipServisi>();

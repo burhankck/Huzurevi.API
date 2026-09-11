@@ -9,6 +9,8 @@ public record OdaDto(
     int Kapasite,
     string Durum,
     string? OdaTipi,
+    List<string> Ozellikler,
+    string? Notlar,
     int YatakSayisi,
     int DoluYatakSayisi,
     List<YatakOzetDto> Yataklar);
@@ -17,6 +19,9 @@ public record YatakOzetDto(
     int Id,
     string YatakNumarasi,
     bool DoluMu,
+    string YatakTipi,
+    List<string> Ozellikler,
+    string Durum,
     SakinOzetDto? Sakin);
 
 public record SakinOzetDto(int Id, string AdSoyad, string TcKimlikNo);
@@ -27,7 +32,9 @@ public record OdaOlusturIstek(
     string? Blok,
     int Kat,
     int Kapasite,
-    string? OdaTipi);
+    string? OdaTipi,
+    List<string>? Ozellikler,
+    string? Notlar);
 
 public record OdaGuncelleIstek(
     string? OdaNo,
@@ -36,4 +43,6 @@ public record OdaGuncelleIstek(
     int Kat,
     int Kapasite,
     string? Durum,
-    string? OdaTipi);
+    string? OdaTipi,
+    List<string>? Ozellikler,
+    string? Notlar);

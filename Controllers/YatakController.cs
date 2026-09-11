@@ -11,17 +11,20 @@ public class YatakController : TemelApiController
 {
     private readonly IYatakServisi _yatakService;
     private readonly IValidator<YatakOlusturIstek> _createValidator;
+    private readonly IValidator<YatakGuncelleIstek> _updateValidator;
     private readonly IValidator<YatakAtamaIstek> _atamaValidator;
     private readonly IValidator<YatakBosaltIstek> _bosaltValidator;
 
     public YatakController(
         IYatakServisi yatakService,
         IValidator<YatakOlusturIstek> createValidator,
+        IValidator<YatakGuncelleIstek> updateValidator,
         IValidator<YatakAtamaIstek> atamaValidator,
         IValidator<YatakBosaltIstek> bosaltValidator)
     {
         _yatakService = yatakService;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
         _atamaValidator = atamaValidator;
         _bosaltValidator = bosaltValidator;
     }
@@ -49,6 +52,15 @@ public class YatakController : TemelApiController
         await _createValidator.ValidateAndThrowAsync(request, ct);
         var result = await _yatakService.OlusturAsync(request, ct);
         return Created(result, "Yatak eklendi.");
+    }
+
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PutYatak(int id, YatakGuncelleIstek request, CancellationToken ct)
+    {
+        await _updateValidator.ValidateAndThrowAsync(request, ct);
+        await _yatakService.GuncelleAsync(id, request, ct);
+        return Ok<object?>(null, "Yatak bilgileri güncellendi.");
     }
 
     [HttpDelete("{id:int}")]

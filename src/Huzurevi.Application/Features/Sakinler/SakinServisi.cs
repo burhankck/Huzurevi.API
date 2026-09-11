@@ -16,14 +16,39 @@ public class SakinServisi : ISakinServisi
 
     public async Task<List<SakinListDto>> TumunuGetirAsync(CancellationToken ct = default)
     {
-        var yataklar = await YerlesimYataklariAsync(ct);
+        var yataklar = await _db.Yataklar
+            .AsNoTracking()
+            .Where(y => y.SakinId != null)
+            .Select(y => new { y.SakinId, y.Id, OdaNo = y.Oda!.OdaNumarasi, y.YatakNumarasi })
+            .ToListAsync(ct);
+        var yatakSozluk = yataklar
+            .Where(y => y.SakinId != null)
+            .GroupBy(y => y.SakinId!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
         var sakinler = await _db.Sakinler
             .AsNoTracking()
             .OrderBy(s => s.Ad)
             .ThenBy(s => s.Soyad)
             .ToListAsync(ct);
 
-        return sakinler.Select(s => MapListe(s, yataklar.FirstOrDefault(y => y.SakinId == s.Id))).ToList();
+        return sakinler.Select(s =>
+        {
+            yatakSozluk.TryGetValue(s.Id, out var yatak);
+            var yatakBilgisi = yatak == null ? null : $"Oda {yatak.OdaNo} - Yatak {yatak.YatakNumarasi}";
+            return new SakinListDto(
+                s.Id,
+                s.KayitNo,
+                s.Ad,
+                s.Soyad,
+                s.TcKimlikNo,
+                s.Telefon,
+                s.Durum,
+                s.Durum == "Aktif",
+                !string.IsNullOrWhiteSpace(s.FotoYolu),
+                yatak?.Id,
+                yatakBilgisi);
+        }).ToList();
     }
 
     public async Task<SakinDetayDto> GetirAsync(int id, CancellationToken ct = default)
@@ -314,13 +339,6 @@ public class SakinServisi : ISakinServisi
         }
     }
 
-    private async Task<List<Yatak>> YerlesimYataklariAsync(CancellationToken ct) =>
-        await _db.Yataklar
-            .AsNoTracking()
-            .Include(y => y.Oda)
-            .Where(y => y.SakinId != null)
-            .ToListAsync(ct);
-
     private static SakinListDto MapListe(Sakin sakin, Yatak? yatak)
     {
         var yatakBilgisi = yatak?.Oda == null
@@ -406,29 +424,45 @@ public class SakinServisi : ISakinServisi
         var saglikVar = await _db.SakinOlcumleri.AnyAsync(x => x.SakinId == id, ct)
             || await _db.SakinSaglikDegerlendirmeleri.AnyAsync(x => x.SakinId == id, ct)
             || await _db.SakinSaglikKayitlari.AnyAsync(x => x.SakinId == id, ct);
-        var ilacVar = await _db.IlacTakipleri.AnyAsync(x => x.SakinId == id, ct);
+        var ilacVar = await _db.IlacTakipleri.AnyAsync(x => x.SakinId == id, ct)
+            || await _db.IlacEmirleri.AnyAsync(x => x.SakinId == id, ct);
         var ziyaretVar = await _db.Ziyaretler.AnyAsync(x => x.SakinId == id, ct);
-        var izinVar = await _db.SakinGunlukIzinleri.AnyAsync(x => x.SakinId == id, ct);
+        var izinVar = await _db.SakinGunlukIzinleri.AnyAsync(x => x.SakinId == id, ct)
+            || await _db.IzinSurecleri.AnyAsync(x => x.SakinId == id, ct);
 
-        var basvuruTamam = !string.IsNullOrWhiteSpace(sakin.BasvuruDurumu) || !string.IsNullOrWhiteSpace(sakin.KayitTuru);
         var kabulTamam = sakin.KabulTarihi != default;
+        var basvuruTamam = !string.IsNullOrWhiteSpace(sakin.BasvuruDurumu) || !string.IsNullOrWhiteSpace(sakin.KayitTuru) || kabulTamam;
         var yerlesimTamam = yatak != null;
-        var cikisTamam = sakin.AyrilisTarihi != null || sakin.Durum == "Ayrıldı";
-        var arsivTamam = sakin.Durum is "Ayrıldı" or "Arşiv";
+        var cikisTamam = sakin.AyrilisTarihi != null || sakin.Durum is "Ayrıldı" or "Arşiv";
+        var arsivTamam = sakin.Durum is "Arşiv" || string.Equals(sakin.BasvuruDurumu, "Arşiv", StringComparison.OrdinalIgnoreCase)
+            || (cikisTamam && sakin.Durum == "Ayrıldı");
+        var bakimDevam = sakin.Durum == "Aktif" && yerlesimTamam && !cikisTamam;
+        var bakimTamam = cikisTamam || arsivTamam;
+
+        string Durum(bool tamam, bool devam) =>
+            tamam ? "Tamamlandı" : devam ? "Devam ediyor" : "Bekliyor";
+
+        var mevcut = !basvuruTamam ? "Basvuru"
+            : !kabulTamam ? "Kabul"
+            : !yerlesimTamam && !cikisTamam ? "Yerlesim"
+            : bakimDevam ? "Bakim"
+            : cikisTamam && !arsivTamam ? "Cikis"
+            : arsivTamam ? "Arsiv"
+            : "Bakim";
 
         return
         [
-            new("Basvuru", "Başvuru", basvuruTamam ? "Tamamlandı" : "Bekliyor", sakin.BasvuruDurumu ?? sakin.KayitTuru, 0),
-            new("Kabul", "Kabul", kabulTamam ? "Tamamlandı" : "Bekliyor", sakin.KabulTarihi.ToString("dd.MM.yyyy"), 0),
-            new("Yerlesim", "Oda yerleştirme", yerlesimTamam ? "Tamamlandı" : "Bekliyor", yerlesimTamam ? $"{yatak!.Oda?.OdaNumarasi} / {yatak.YatakNumarasi}" : "Yatak yok", 6),
-            new("Bakim", "Bakım", sakin.Durum == "Aktif" ? "Devam ediyor" : "Bekliyor", sakin.Durum, 0),
-            new("Saglik", "Sağlık", saglikVar ? "Tamamlandı" : "Bekliyor", saglikVar ? "Kayıt var" : "Henüz yok", 7),
-            new("Ilac", "İlaç", ilacVar ? "Tamamlandı" : "Bekliyor", ilacVar ? "Plan var" : "Henüz yok", 7),
-            new("Ziyaret", "Ziyaret", ziyaretVar ? "Tamamlandı" : "Bekliyor", ziyaretVar ? "Kayıt var" : "Henüz yok", null),
-            new("Izin", "İzin", izinVar ? "Tamamlandı" : "Bekliyor", izinVar ? "Kayıt var" : "Henüz yok", 5),
-            new("OdaDegisikligi", "Oda değişikliği", yerlesimSayisi > 1 ? "Tamamlandı" : "Bekliyor", $"{yerlesimSayisi} yerleşim", 6),
-            new("Cikis", "Çıkış", cikisTamam ? "Tamamlandı" : "Bekliyor", sakin.AyrilisDurumu, 0),
-            new("Arsiv", "Arşiv", arsivTamam ? "Tamamlandı" : "Bekliyor", sakin.Durum, 0)
+            new("Basvuru", "Başvuru", Durum(basvuruTamam, mevcut == "Basvuru"), sakin.BasvuruDurumu ?? sakin.KayitTuru, 0, null),
+            new("Kabul", "Kabul", Durum(kabulTamam, mevcut == "Kabul"), sakin.KabulTarihi == default ? null : sakin.KabulTarihi.ToString("dd.MM.yyyy"), 0, null),
+            new("Yerlesim", "Oda yerleştirme", Durum(yerlesimTamam, mevcut == "Yerlesim"), yerlesimTamam ? $"{yatak!.Oda?.OdaNumarasi} / {yatak.YatakNumarasi}" : "Yatak yok", 6, null),
+            new("Bakim", "Bakım", Durum(bakimTamam, bakimDevam || mevcut == "Bakim"), sakin.Durum, 0, null),
+            new("Saglik", "Sağlık", Durum(saglikVar, false), saglikVar ? "Kayıt var" : "Henüz yok", 7, null),
+            new("Ilac", "İlaç", Durum(ilacVar, false), ilacVar ? "Plan var" : "Henüz yok", 7, null),
+            new("Ziyaret", "Ziyaret", Durum(ziyaretVar, false), ziyaretVar ? "Kayıt var" : "Henüz yok", null, $"/ziyaretler?sakinId={id}"),
+            new("Izin", "İzin", Durum(izinVar, false), izinVar ? "Kayıt var" : "Henüz yok", 5, null),
+            new("OdaDegisikligi", "Oda değişikliği", Durum(yerlesimSayisi > 1, false), $"{yerlesimSayisi} yerleşim", 6, null),
+            new("Cikis", "Çıkış", Durum(cikisTamam, mevcut == "Cikis"), sakin.AyrilisDurumu, 0, null),
+            new("Arsiv", "Arşiv", Durum(arsivTamam, mevcut == "Arsiv"), sakin.Durum, 0, null)
         ];
     }
 
