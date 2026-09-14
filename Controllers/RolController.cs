@@ -27,6 +27,7 @@ public class RolController : TemelApiController
     public async Task<IActionResult> GetId(int id, CancellationToken ct) => Ok(await _servis.GetirAsync(id, ct));
 
     [HttpPost]
+    [Yetki("rol.ekle")]
     public async Task<IActionResult> Post(RolIstek istek, CancellationToken ct)
     {
         await _dogrulayici.ValidateAndThrowAsync(istek, ct);
@@ -34,6 +35,7 @@ public class RolController : TemelApiController
     }
 
     [HttpPut("{id:int}")]
+    [Yetki("rol.duzenle")]
     public async Task<IActionResult> Put(int id, RolIstek istek, CancellationToken ct)
     {
         await _dogrulayici.ValidateAndThrowAsync(istek, ct);
@@ -42,6 +44,7 @@ public class RolController : TemelApiController
     }
 
     [HttpDelete("{id:int}")]
+    [Yetki("rol.sil")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         await _servis.SilAsync(id, ct);

@@ -21,6 +21,7 @@ public class AyarController : TemelApiController
     public async Task<IActionResult> Get(CancellationToken ct) => Ok(await _servis.GetirAsync(ct));
 
     [HttpPut]
+    [Yetki("ayar.duzenle")]
     public async Task<IActionResult> Put(UygulamaAyariIstek istek, CancellationToken ct)
     {
         await _dogrulayici.ValidateAndThrowAsync(istek, ct);

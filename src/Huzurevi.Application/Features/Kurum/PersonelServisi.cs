@@ -31,15 +31,18 @@ public class PersonelServisi : IPersonelServisi
 {
     private readonly IUygulamaDbContext _db;
     private readonly IDosyaDepolama _dosya;
-    public PersonelServisi(IUygulamaDbContext db, IDosyaDepolama dosya)
+    private readonly IOturumBaglami _oturum;
+    public PersonelServisi(IUygulamaDbContext db, IDosyaDepolama dosya, IOturumBaglami oturum)
     {
         _db = db;
         _dosya = dosya;
+        _oturum = oturum;
     }
 
     public async Task<List<PersonelListDto>> ListeleAsync(int? kurulusId, CancellationToken ct = default)
     {
         var sorgu = _db.Personeller.AsNoTracking().Include(x => x.Kurulus).AsQueryable();
+        kurulusId = _oturum.ListeFiltresi(kurulusId);
         if (kurulusId is not null) sorgu = sorgu.Where(x => x.KurulusId == kurulusId);
         var kayitlar = await sorgu.OrderBy(x => x.Ad).ThenBy(x => x.Soyad).ToListAsync(ct);
         return kayitlar.Select(x => new PersonelListDto(x.Id, x.SicilNo, x.Ad, x.Soyad, x.Unvan, x.Gorev, x.Durum, x.Kurulus?.Ad ?? "", !string.IsNullOrWhiteSpace(x.FotoYolu))).ToList();
@@ -49,11 +52,12 @@ public class PersonelServisi : IPersonelServisi
 
     public async Task<PersonelDto> OlusturAsync(PersonelIstek istek, CancellationToken ct = default)
     {
-        await KurulusVar(istek.KurulusId, ct);
-        if (await _db.Personeller.AnyAsync(x => x.KurulusId == istek.KurulusId && x.SicilNo == istek.SicilNo.Trim(), ct))
+        var kurulusId = _oturum.YazmaKurulusId(istek.KurulusId);
+        await KurulusVar(kurulusId, ct);
+        if (await _db.Personeller.AnyAsync(x => x.KurulusId == kurulusId && x.SicilNo == istek.SicilNo.Trim(), ct))
             throw new CakismaHatasi("Bu sicil numarası bu kuruluşta kayıtlı.");
         var kayit = new Personel { OlusturulmaTarihi = DateTime.UtcNow };
-        Doldur(kayit, istek);
+        Doldur(kayit, istek with { KurulusId = kurulusId });
         _db.Personeller.Add(kayit);
         await _db.SaveChangesAsync(ct);
         return Map(kayit);
@@ -62,9 +66,11 @@ public class PersonelServisi : IPersonelServisi
     public async Task GuncelleAsync(int id, PersonelIstek istek, CancellationToken ct = default)
     {
         var kayit = await Kayit(id, ct);
-        if (await _db.Personeller.AnyAsync(x => x.KurulusId == istek.KurulusId && x.SicilNo == istek.SicilNo.Trim() && x.Id != id, ct))
+        var kurulusId = _oturum.YazmaKurulusId(istek.KurulusId);
+        if (await _db.Personeller.AnyAsync(x => x.KurulusId == kurulusId && x.SicilNo == istek.SicilNo.Trim() && x.Id != id, ct))
             throw new CakismaHatasi("Bu sicil numarası bu kuruluşta kayıtlı.");
         Doldur(kayit, istek);
+        kayit.KurulusId = kurulusId;
         kayit.GuncellenmeTarihi = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
     }
@@ -165,8 +171,12 @@ public class PersonelServisi : IPersonelServisi
         return await _dosya.AcAsync(kayit.SaklamaYolu, kayit.IcerikTipi, kayit.OrijinalAd, ct) ?? throw new KayitBulunamadiHatasi("Dosya bulunamadı.");
     }
 
-    private async Task<Personel> Kayit(int id, CancellationToken ct) =>
-        await _db.Personeller.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Personel bulunamadı.");
+    private async Task<Personel> Kayit(int id, CancellationToken ct)
+    {
+        var kayit = await _db.Personeller.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Personel bulunamadı.");
+        _oturum.KurulusDogrula(kayit.KurulusId);
+        return kayit;
+    }
 
     private async Task KurulusVar(int id, CancellationToken ct)
     {

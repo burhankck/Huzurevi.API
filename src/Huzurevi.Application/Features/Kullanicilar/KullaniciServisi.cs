@@ -11,12 +11,14 @@ public class KullaniciServisi : IKullaniciServisi
     private readonly IUygulamaDbContext _db;
     private readonly ISifreHasher _sifreHasher;
     private readonly IAyarServisi _ayar;
+    private readonly IOturumBaglami _oturum;
 
-    public KullaniciServisi(IUygulamaDbContext db, ISifreHasher sifreHasher, IAyarServisi ayar)
+    public KullaniciServisi(IUygulamaDbContext db, ISifreHasher sifreHasher, IAyarServisi ayar, IOturumBaglami oturum)
     {
         _db = db;
         _sifreHasher = sifreHasher;
         _ayar = ayar;
+        _oturum = oturum;
     }
 
     public async Task<List<KullaniciListDto>> TumunuGetirAsync(CancellationToken ct = default)
@@ -28,6 +30,12 @@ public class KullaniciServisi : IKullaniciServisi
             .ThenBy(k => k.Soyad)
             .ToListAsync(ct);
         var uyeler = await _db.KullaniciKuruluslari.AsNoTracking().Include(x => x.Kurulus).ToListAsync(ct);
+        if (!_oturum.YoneticiMi && _oturum.KurulusId is int kid)
+        {
+            var izinli = uyeler.Where(u => u.KurulusId == kid).Select(u => u.KullaniciId).ToHashSet();
+            kayitlar = kayitlar.Where(k => izinli.Contains(k.Id)).ToList();
+            uyeler = uyeler.Where(u => u.KurulusId == kid).ToList();
+        }
         return kayitlar.Select(k => Map(k, uyeler.Where(u => u.KullaniciId == k.Id).ToList())).ToList();
     }
 
@@ -36,6 +44,8 @@ public class KullaniciServisi : IKullaniciServisi
         var kullanici = await _db.Kullanicilar.AsNoTracking().Include(k => k.Personel).FirstOrDefaultAsync(k => k.Id == id, ct)
             ?? throw new KayitBulunamadiHatasi("Kullanıcı bulunamadı.");
         var uyeler = await _db.KullaniciKuruluslari.AsNoTracking().Include(x => x.Kurulus).Where(x => x.KullaniciId == id).ToListAsync(ct);
+        if (!_oturum.YoneticiMi && _oturum.KurulusId is int kid && uyeler.All(u => u.KurulusId != kid))
+            throw new ErisimEngellendiHatasi("Bu kuruluş verisine erişim yetkiniz yok.");
         return Map(kullanici, uyeler);
     }
 
@@ -193,9 +203,11 @@ public class KullaniciServisi : IKullaniciServisi
         var liste = uyeler?.Where(x => x.KurulusId > 0).ToList() ?? [];
         if (liste.Count == 0)
         {
-            var kurulus = await _db.Kuruluslar.OrderBy(x => x.Id).FirstOrDefaultAsync(ct)
-                ?? throw new GecersizIstekHatasi("Önce bir kuruluş tanımlayın.");
-            liste = [new KullaniciUyelikIstek(kurulus.Id, varsayilanRol, true)];
+            var kurulusId = _oturum.KurulusId
+                ?? (await _db.Kuruluslar.OrderBy(x => x.Id).Select(x => (int?)x.Id).FirstOrDefaultAsync(ct));
+            if (kurulusId is null)
+                throw new GecersizIstekHatasi("Önce bir kuruluş tanımlayın.");
+            liste = [new KullaniciUyelikIstek(kurulusId.Value, varsayilanRol, true)];
         }
 
         var mevcut = await _db.KullaniciKuruluslari.Where(x => x.KullaniciId == kullaniciId).ToListAsync(ct);
@@ -210,6 +222,7 @@ public class KullaniciServisi : IKullaniciServisi
 
         foreach (var uye in liste)
         {
+            _oturum.KurulusDogrula(uye.KurulusId);
             if (!await _db.Kuruluslar.AnyAsync(x => x.Id == uye.KurulusId, ct))
             {
                 throw new KayitBulunamadiHatasi("Kuruluş bulunamadı.");

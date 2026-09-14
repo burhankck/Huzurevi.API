@@ -109,6 +109,7 @@ public class SakinController : TemelApiController
     }
 
     [HttpPost]
+    [Yetki("sakin.ekle")]
     [ProducesResponseType(typeof(ApiYanit<SakinListDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> PostSakin(SakinOlusturIstek request, CancellationToken ct)
     {
@@ -118,6 +119,7 @@ public class SakinController : TemelApiController
     }
 
     [HttpPut("{id:int}")]
+    [Yetki("sakin.duzenle")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> PutSakin(int id, SakinGuncelleIstek request, CancellationToken ct)
     {
@@ -127,6 +129,7 @@ public class SakinController : TemelApiController
     }
 
     [HttpDelete("{id:int}")]
+    [Yetki("sakin.sil")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteSakin(int id, CancellationToken ct)
     {

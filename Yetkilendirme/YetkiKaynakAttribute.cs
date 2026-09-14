@@ -31,6 +31,9 @@ public sealed class YetkiFiltresi : IAsyncAuthorizationFilter
         if (context.HttpContext.User.Identity?.IsAuthenticated != true)
             return;
 
+        if (YetkiKaynakYardimcisi.MetoddaAcikYetkiVar(context))
+            return;
+
         var rol = context.HttpContext.User.FindFirstValue(ClaimTypes.Role)
             ?? context.HttpContext.User.FindFirstValue("role");
         var metot = context.HttpContext.Request.Method.ToUpperInvariant();

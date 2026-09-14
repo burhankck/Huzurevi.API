@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Huzurevi.API.Guvenlik;
 using Huzurevi.API.Json;
 using Huzurevi.API.Middleware;
 using Huzurevi.Application;
@@ -76,7 +77,13 @@ try
             };
         });
 
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<Huzurevi.Application.Common.Interfaces.IOturumBaglami, Huzurevi.API.Yetkilendirme.OturumBaglami>();
+    builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider, Huzurevi.API.Yetkilendirme.YetkiPolitikaSaglayici>();
+    builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, Huzurevi.API.Yetkilendirme.IzinYetkiIsleyici>();
+
     builder.Services.AddAuthorization();
+    builder.Services.IstekSinirlamasiEkle(builder.Configuration);
     builder.Services.Configure<FormOptions>(secenek =>
     {
         secenek.MultipartBodyLengthLimit = 12 * 1024 * 1024;
@@ -176,9 +183,10 @@ try
     app.UseCors("ReactIzin");
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRateLimiter();
     app.UseMiddleware<BakimModuAraKatmani>();
     app.UseMiddleware<DenetimAraKatmani>();
-    app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+    app.MapGet("/health", () => Results.Ok(new { status = "ok" })).DisableRateLimiting();
     app.MapControllers();
 
     app.Run();

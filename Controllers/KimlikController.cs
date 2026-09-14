@@ -1,8 +1,10 @@
 using FluentValidation;
 using Huzurevi.Application.Common.Models;
 using Huzurevi.Application.Features.Kimlik;
+using Huzurevi.API.Guvenlik;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
 namespace Huzurevi.API.Controllers;
@@ -36,6 +38,7 @@ public class KimlikController : TemelApiController
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(IstekSinirlama.KimlikPolitika)]
     [HttpPost("giris")]
     [ProducesResponseType(typeof(ApiYanit<GirisSonuc>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Giris(GirisIstek istek, CancellationToken ct)
@@ -46,6 +49,7 @@ public class KimlikController : TemelApiController
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(IstekSinirlama.KimlikPolitika)]
     [HttpPost("sifremi-unuttum")]
     public async Task<IActionResult> SifremiUnuttum(SifremiUnuttumIstek istek, CancellationToken ct)
     {
@@ -59,6 +63,7 @@ public class KimlikController : TemelApiController
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting(IstekSinirlama.KimlikPolitika)]
     [HttpPost("sifre-sifirla")]
     public async Task<IActionResult> SifreSifirla(SifreSifirlaIstek istek, CancellationToken ct)
     {
@@ -82,6 +87,21 @@ public class KimlikController : TemelApiController
 
         int? kurulusId = int.TryParse(User.FindFirstValue("kurulusId"), out var kid) ? kid : null;
         var sonuc = await _kimlikServisi.BeniGetirAsync(kullaniciId, kurulusId, ct);
+        return Ok(sonuc);
+    }
+
+    [Authorize]
+    [HttpGet("profil-yetkileri")]
+    [ProducesResponseType(typeof(ApiYanit<Huzurevi.Application.Features.Yetkiler.ProfilYetkileriDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ProfilYetkileri(CancellationToken ct)
+    {
+        if (OturumKullaniciId is not int kullaniciId)
+        {
+            return Unauthorized();
+        }
+
+        int? kurulusId = int.TryParse(User.FindFirstValue("kurulusId"), out var kid) ? kid : null;
+        var sonuc = await _kimlikServisi.ProfilYetkileriGetirAsync(kullaniciId, kurulusId, ct);
         return Ok(sonuc);
     }
 

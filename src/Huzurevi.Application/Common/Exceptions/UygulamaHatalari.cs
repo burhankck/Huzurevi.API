@@ -8,6 +8,8 @@ public class GecersizIstekHatasi(string mesaj) : Exception(mesaj);
 
 public class YetkisizHatasi(string mesaj) : Exception(mesaj);
 
+public class ErisimEngellendiHatasi(string mesaj) : Exception(mesaj);
+
 public class HesapKilitliHatasi(string mesaj) : Exception(mesaj);
 
 public class BakimModuHatasi(string mesaj) : Exception(mesaj);

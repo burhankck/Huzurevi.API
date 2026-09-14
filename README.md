@@ -8,6 +8,10 @@ Geliştirme: `http://localhost:5073` — Swagger `/swagger`, health `/health`.
 
 Tohum kullanıcılar: `admin` / `Admin123!` (Yönetici), `ayse` / `Personel1!`.
 
+### Son değişiklikler (RBAC)
+
+Endpoint kilidi `[Yetki("izin.kodu")]` + JWT. Login sonrası `izinler` ve menü ağacı döner. Token yoksa 401, izin yoksa 403. Ayrıntı kök `README.md` içinde.
+
 ---
 
 ## Mimari
@@ -39,10 +43,12 @@ React  →  *Controller  →  I*Servisi  →  IUygulamaDbContext  →  PostgreSQ
 
 ### Kimlik ve yetki
 
-- JWT Bearer. Rol, `Kullanici.Rol` claim’inden gelir.
-- `[YetkiKaynak("sakin")]` metodu `goruntule` / `ekle` / `duzenle` / `sil` izinlerine bağlar.
-- `Yonetici` tüm kontrolleri geçer. `Personel` sistem kaynaklarını ve bazı silmeleri almaz.
-- İzinler `IzinKatalogu`; roller ekranından atanır.
+- JWT Bearer. Rol ve `kurulusId` claim’den gelir. Yanıtta `token` ve `accessToken` aynı JWT’dir.
+- `GET /api/Kimlik/profil-yetkileri` — aktif kuruluş, rol, `izinler`, izinli menü ağacı.
+- `[Yetki("sakin.sil")]` politika ile endpoint kilidi (token + izin; aksi **403**).
+- `[YetkiKaynak("sakin")]` HTTP metodunu CRUD izinlerine bağlar.
+- `Yonetici` tüm kontrolleri geçer. `Personel` sistem kaynaklarını, narkotiği ve bazı silmeleri almaz.
+- İzinler `IzinKatalogu`; `RolIzinleri` üzerinden roller ekranından atanır.
 
 ### Altyapı
 

@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Huzurevi.API.Controllers;
 
-[YetkiKaynak("saglik")]
+[YetkiKaynak("narkotik")]
 public class NarkotikController : TemelApiController
 {
     private readonly INarkotikServisi _servis;

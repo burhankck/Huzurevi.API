@@ -17,11 +17,19 @@ public interface IKurulusServisi
 public class KurulusServisi : IKurulusServisi
 {
     private readonly IUygulamaDbContext _db;
-    public KurulusServisi(IUygulamaDbContext db) => _db = db;
+    private readonly IOturumBaglami _oturum;
+    public KurulusServisi(IUygulamaDbContext db, IOturumBaglami oturum)
+    {
+        _db = db;
+        _oturum = oturum;
+    }
 
     public async Task<List<KurulusDto>> ListeleAsync(CancellationToken ct = default)
     {
-        var kayitlar = await _db.Kuruluslar.AsNoTracking().OrderBy(x => x.Ad).ToListAsync(ct);
+        var sorgu = _db.Kuruluslar.AsNoTracking().AsQueryable();
+        var filtre = _oturum.ListeFiltresi(null);
+        if (filtre is not null) sorgu = sorgu.Where(x => x.Id == filtre);
+        var kayitlar = await sorgu.OrderBy(x => x.Ad).ToListAsync(ct);
         return kayitlar.Select(Map).ToList();
     }
 
@@ -37,6 +45,7 @@ public class KurulusServisi : IKurulusServisi
     public async Task GuncelleAsync(int id, KurulusIstek istek, CancellationToken ct = default)
     {
         var kayit = await _db.Kuruluslar.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Kuruluş bulunamadı.");
+        _oturum.KurulusDogrula(id);
         Doldur(kayit, istek);
         kayit.GuncellenmeTarihi = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -45,6 +54,7 @@ public class KurulusServisi : IKurulusServisi
     public async Task SilAsync(int id, CancellationToken ct = default)
     {
         var kayit = await _db.Kuruluslar.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Kuruluş bulunamadı.");
+        _oturum.KurulusDogrula(id);
         var uye = await _db.KullaniciKuruluslari.AnyAsync(x => x.KurulusId == id, ct);
         if (uye) throw new GecersizIstekHatasi("Bu kuruluşa bağlı kullanıcı varken silinemez.");
         kayit.SilindiMi = true;
@@ -54,6 +64,9 @@ public class KurulusServisi : IKurulusServisi
 
     public async Task<AdresVarsayilanDto> AdresVarsayilanAsync(int? kurulusId, CancellationToken ct = default)
     {
+        kurulusId = _oturum.ListeFiltresi(kurulusId);
+        if (kurulusId is not null)
+            _oturum.KurulusDogrula(kurulusId);
         var kurulus = kurulusId is null
             ? await _db.Kuruluslar.AsNoTracking().Where(x => x.AktifMi).OrderBy(x => x.Id).FirstOrDefaultAsync(ct)
             : await _db.Kuruluslar.AsNoTracking().FirstOrDefaultAsync(x => x.Id == kurulusId, ct);

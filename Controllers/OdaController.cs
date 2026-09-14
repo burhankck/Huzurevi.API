@@ -40,6 +40,7 @@ public class OdaController : TemelApiController
     }
 
     [HttpPost]
+    [Yetki("oda.ekle")]
     [ProducesResponseType(typeof(ApiYanit<OdaDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> PostOda(OdaOlusturIstek request, CancellationToken ct)
     {
@@ -49,6 +50,7 @@ public class OdaController : TemelApiController
     }
 
     [HttpPut("{id:int}")]
+    [Yetki("oda.duzenle")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> PutOda(int id, OdaGuncelleIstek request, CancellationToken ct)
     {
@@ -58,6 +60,7 @@ public class OdaController : TemelApiController
     }
 
     [HttpDelete("{id:int}")]
+    [Yetki("oda.sil")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteOda(int id, CancellationToken ct)
     {

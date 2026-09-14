@@ -41,6 +41,7 @@ public class KullaniciController : TemelApiController
     }
 
     [HttpPost]
+    [Yetki("kullanici.ekle")]
     [ProducesResponseType(typeof(ApiYanit<KullaniciListDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> PostKullanici(KullaniciOlusturIstek istek, CancellationToken ct)
     {
@@ -50,6 +51,7 @@ public class KullaniciController : TemelApiController
     }
 
     [HttpPut("{id:int}")]
+    [Yetki("kullanici.duzenle")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> PutKullanici(int id, KullaniciGuncelleIstek istek, CancellationToken ct)
     {
@@ -64,6 +66,7 @@ public class KullaniciController : TemelApiController
     }
 
     [HttpPost("{id:int}/sifre")]
+    [Yetki("kullanici.duzenle")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> PostSifre(int id, KullaniciSifreIstek istek, CancellationToken ct)
     {
@@ -73,6 +76,7 @@ public class KullaniciController : TemelApiController
     }
 
     [HttpPost("{id:int}/kilit-ac")]
+    [Yetki("kullanici.duzenle")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> PostKilitAc(int id, CancellationToken ct)
     {
@@ -81,6 +85,7 @@ public class KullaniciController : TemelApiController
     }
 
     [HttpDelete("{id:int}")]
+    [Yetki("kullanici.sil")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteKullanici(int id, CancellationToken ct)
     {

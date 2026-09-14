@@ -21,6 +21,7 @@ public static class IzinKatalogu
         {
             var kaynak = x.Kod.Split('.')[0];
             if (SistemKaynaklari.Contains(kaynak)) return false;
+            if (kaynak == "narkotik") return false;
             if (x.Kod is "sakin.sil" or "oda.sil") return false;
             return true;
         })
@@ -40,6 +41,8 @@ public static class IzinKatalogu
                     "ekle" => "Ekle",
                     "duzenle" => "Düzenle",
                     "sil" => "Sil",
+                    "atama" => "Yatak atama",
+                    "aktar" => "Excel / PDF aktar",
                     _ => islem
                 };
                 liste.Add(new IzinTanim($"{kaynak}.{islem}", grup, ad));
@@ -47,14 +50,15 @@ public static class IzinKatalogu
         }
 
         Grup("anasayfa", "Ana sayfa", "goruntule");
-        Grup("sakin", "Sakin", Crud);
-        Grup("oda", "Oda ve yatak", Crud);
-        Grup("ziyaret", "Ziyaretçiler", Crud);
+        Grup("sakin", "Sakin", [.. Crud, "aktar"]);
+        Grup("oda", "Oda ve yatak", [.. Crud, "atama", "aktar"]);
+        Grup("ziyaret", "Ziyaretçiler", [.. Crud, "aktar"]);
         Grup("saglik", "Sağlık", Crud);
+        Grup("narkotik", "Narkotik ilaç", Crud);
         Grup("surec", "Kurum süreçleri", Crud);
         Grup("yemekhane", "Yemekhane", Crud);
         Grup("kutuphane", "Kütüphane", Crud);
-        Grup("personel", "Personel", Crud);
+        Grup("personel", "Personel", [.. Crud, "aktar"]);
         Grup("organizasyon", "Organizasyon", Crud);
         Grup("kurulus", "Kuruluşlar", Crud);
         Grup("tanim", "Adres ve global tanımlar", Crud);

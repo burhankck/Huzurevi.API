@@ -21,11 +21,17 @@ public interface IOrganizasyonServisi
 public class OrganizasyonServisi : IOrganizasyonServisi
 {
     private readonly IUygulamaDbContext _db;
-    public OrganizasyonServisi(IUygulamaDbContext db) => _db = db;
+    private readonly IOturumBaglami _oturum;
+    public OrganizasyonServisi(IUygulamaDbContext db, IOturumBaglami oturum)
+    {
+        _db = db;
+        _oturum = oturum;
+    }
 
     public async Task<List<OrganizasyonBirimDto>> BirimlerAsync(int? kurulusId, CancellationToken ct = default)
     {
         var sorgu = _db.OrganizasyonBirimleri.AsNoTracking().AsQueryable();
+        kurulusId = _oturum.ListeFiltresi(kurulusId);
         if (kurulusId is not null) sorgu = sorgu.Where(x => x.KurulusId == kurulusId);
         var kayitlar = await sorgu.OrderBy(x => x.Ad).ToListAsync(ct);
         return kayitlar.Select(MapBirim).ToList();
@@ -35,7 +41,7 @@ public class OrganizasyonServisi : IOrganizasyonServisi
     {
         await DogrulaUst(istek, null, ct);
         var kayit = new OrganizasyonBirimi { OlusturulmaTarihi = DateTime.UtcNow };
-        Doldur(kayit, istek);
+        Doldur(kayit, istek with { KurulusId = _oturum.YazmaKurulusId(istek.KurulusId) });
         _db.OrganizasyonBirimleri.Add(kayit);
         await _db.SaveChangesAsync(ct);
         return MapBirim(kayit);
@@ -44,8 +50,9 @@ public class OrganizasyonServisi : IOrganizasyonServisi
     public async Task BirimGuncelleAsync(int id, OrganizasyonBirimIstek istek, CancellationToken ct = default)
     {
         var kayit = await _db.OrganizasyonBirimleri.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Birim bulunamadı.");
+        _oturum.KurulusDogrula(kayit.KurulusId);
         await DogrulaUst(istek, id, ct);
-        Doldur(kayit, istek);
+        Doldur(kayit, istek with { KurulusId = _oturum.YazmaKurulusId(istek.KurulusId) });
         kayit.GuncellenmeTarihi = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
     }
@@ -53,6 +60,7 @@ public class OrganizasyonServisi : IOrganizasyonServisi
     public async Task BirimSilAsync(int id, CancellationToken ct = default)
     {
         var kayit = await _db.OrganizasyonBirimleri.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Birim bulunamadı.");
+        _oturum.KurulusDogrula(kayit.KurulusId);
         if (await _db.OrganizasyonBirimleri.AnyAsync(x => x.UstBirimId == id, ct))
             throw new GecersizIstekHatasi("Alt birimi olan kayıt silinemez.");
         if (await _db.PersonelAtamalari.AnyAsync(x => x.BirimId == id && x.AktifMi, ct))
@@ -65,6 +73,8 @@ public class OrganizasyonServisi : IOrganizasyonServisi
     public async Task<List<PersonelAtamaDto>> AtamalarAsync(int? birimId, int? personelId, CancellationToken ct = default)
     {
         var sorgu = _db.PersonelAtamalari.AsNoTracking().Include(x => x.Personel).Include(x => x.Birim).AsQueryable();
+        var kurulusId = _oturum.ListeFiltresi(null);
+        if (kurulusId is not null) sorgu = sorgu.Where(x => x.Birim!.KurulusId == kurulusId);
         if (birimId is not null) sorgu = sorgu.Where(x => x.BirimId == birimId);
         if (personelId is not null) sorgu = sorgu.Where(x => x.PersonelId == personelId);
         var kayitlar = await sorgu.OrderByDescending(x => x.BaslangicTarihi).ToListAsync(ct);
@@ -101,21 +111,24 @@ public class OrganizasyonServisi : IOrganizasyonServisi
 
     private async Task DogrulaUst(OrganizasyonBirimIstek istek, int? kendisi, CancellationToken ct)
     {
-        if (!await _db.Kuruluslar.AnyAsync(x => x.Id == istek.KurulusId, ct)) throw new KayitBulunamadiHatasi("Kuruluş bulunamadı.");
+        var kurulusId = _oturum.YazmaKurulusId(istek.KurulusId);
+        if (!await _db.Kuruluslar.AnyAsync(x => x.Id == kurulusId, ct)) throw new KayitBulunamadiHatasi("Kuruluş bulunamadı.");
         if (istek.UstBirimId is null) return;
         if (istek.UstBirimId == kendisi) throw new GecersizIstekHatasi("Birim kendisinin üstü olamaz.");
         var ust = await _db.OrganizasyonBirimleri.FirstOrDefaultAsync(x => x.Id == istek.UstBirimId, ct) ?? throw new KayitBulunamadiHatasi("Üst birim bulunamadı.");
-        if (ust.KurulusId != istek.KurulusId) throw new GecersizIstekHatasi("Üst birim aynı kuruluşta olmalıdır.");
+        if (ust.KurulusId != kurulusId) throw new GecersizIstekHatasi("Üst birim aynı kuruluşta olmalıdır.");
     }
 
     private async Task PersonelVar(int id, CancellationToken ct)
     {
-        if (!await _db.Personeller.AnyAsync(x => x.Id == id, ct)) throw new KayitBulunamadiHatasi("Personel bulunamadı.");
+        var kayit = await _db.Personeller.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Personel bulunamadı.");
+        _oturum.KurulusDogrula(kayit.KurulusId);
     }
 
     private async Task BirimVar(int id, CancellationToken ct)
     {
-        if (!await _db.OrganizasyonBirimleri.AnyAsync(x => x.Id == id, ct)) throw new KayitBulunamadiHatasi("Birim bulunamadı.");
+        var kayit = await _db.OrganizasyonBirimleri.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new KayitBulunamadiHatasi("Birim bulunamadı.");
+        _oturum.KurulusDogrula(kayit.KurulusId);
     }
 
     private static void Doldur(OrganizasyonBirimi kayit, OrganizasyonBirimIstek istek)

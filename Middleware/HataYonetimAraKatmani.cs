@@ -43,6 +43,7 @@ public class HataYonetimAraKatmani
             CakismaHatasi cakismaHatasi => (HttpStatusCode.Conflict, cakismaHatasi.Message, (List<string>?)null),
             GecersizIstekHatasi gecersizIstek => (HttpStatusCode.BadRequest, gecersizIstek.Message, (List<string>?)null),
             YetkisizHatasi yetkisiz => (HttpStatusCode.Unauthorized, yetkisiz.Message, (List<string>?)null),
+            ErisimEngellendiHatasi yasak => (HttpStatusCode.Forbidden, yasak.Message, (List<string>?)null),
             HesapKilitliHatasi kilitli => (HttpStatusCode.Forbidden, kilitli.Message, (List<string>?)null),
             BakimModuHatasi bakim => (HttpStatusCode.ServiceUnavailable, bakim.Message, (List<string>?)null),
             _ => (HttpStatusCode.InternalServerError, "Beklenmeyen bir hata oluştu.", (List<string>?)null)

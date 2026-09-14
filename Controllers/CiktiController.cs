@@ -10,22 +10,22 @@ public class CiktiController : TemelApiController
     public CiktiController(ICiktiServisi servis) => _servis = servis;
 
     [HttpGet("sakin")]
-    [YetkiKaynak("sakin")]
+    [Yetki("sakin.aktar")]
     public async Task<IActionResult> Sakin([FromQuery] string format = "xlsx", [FromQuery] string? q = null, CancellationToken ct = default) =>
         Dosya(await _servis.SakinAsync(format, q, ct));
 
     [HttpGet("oda")]
-    [YetkiKaynak("oda")]
+    [Yetki("oda.aktar")]
     public async Task<IActionResult> Oda([FromQuery] string format = "xlsx", [FromQuery] string? blok = null, [FromQuery] int? kat = null, [FromQuery] string? durum = null, CancellationToken ct = default) =>
         Dosya(await _servis.OdaAsync(format, blok, kat, durum, ct));
 
     [HttpGet("ziyaret")]
-    [YetkiKaynak("ziyaret")]
+    [Yetki("ziyaret.aktar")]
     public async Task<IActionResult> Ziyaret([FromQuery] string format = "xlsx", [FromQuery] bool? iceride = null, CancellationToken ct = default) =>
         Dosya(await _servis.ZiyaretAsync(format, iceride, ct));
 
     [HttpGet("personel")]
-    [YetkiKaynak("personel")]
+    [Yetki("personel.aktar")]
     public async Task<IActionResult> Personel([FromQuery] string format = "xlsx", CancellationToken ct = default) =>
         Dosya(await _servis.PersonelAsync(format, ct));
 

@@ -19,6 +19,18 @@ public abstract class TemelApiController : ControllerBase
         }
     }
 
+    protected int? OturumKurulusId
+    {
+        get
+        {
+            var deger = User.FindFirstValue("kurulusId");
+            return int.TryParse(deger, out var id) ? id : null;
+        }
+    }
+
+    protected string? OturumRol =>
+        User.FindFirstValue(ClaimTypes.Role) ?? User.FindFirstValue("role");
+
     protected static ObjectResult Ok<T>(T veri, string? mesaj = null) =>
         new(ApiYanit<T>.BasariliSonuc(veri, mesaj)) { StatusCode = 200 };
 

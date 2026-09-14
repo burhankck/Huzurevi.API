@@ -1,5 +1,6 @@
 using FluentValidation;
 using Huzurevi.Application.Features.Kurum;
+using Huzurevi.Application.Features.Yetkiler;
 
 namespace Huzurevi.Application.Features.Kimlik;
 
@@ -8,7 +9,11 @@ public record GirisIstek(string KullaniciAdi, string Sifre);
 public record GirisSonuc(
     string Token,
     DateTime GecerlilikBitis,
-    KullaniciOzetDto Kullanici);
+    KullaniciOzetDto Kullanici)
+{
+    /// <summary>JWT access token. Postman Authorization: Bearer bu değeri kullanır.</summary>
+    public string AccessToken => Token;
+}
 
 public record KullaniciOzetDto(
     int Id,
@@ -25,7 +30,8 @@ public record KullaniciOzetDto(
     string? AktifKurulusAd,
     List<KurulusSecimDto> Kuruluslar,
     string? RolAd,
-    List<string> Izinler);
+    List<string> Izinler,
+    List<MenuOgeDto> Menu);
 
 public record KurulusSecIstek(int KurulusId);
 

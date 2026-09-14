@@ -95,6 +95,12 @@ public class KimlikServisi : IKimlikServisi
         return await Ozet(kullanici, kurulusId, ct);
     }
 
+    public async Task<ProfilYetkileriDto> ProfilYetkileriGetirAsync(int kullaniciId, int? kurulusId, CancellationToken ct = default)
+    {
+        var ozet = await BeniGetirAsync(kullaniciId, kurulusId, ct);
+        return new ProfilYetkileriDto(ozet.AktifKurulusId, ozet.AktifKurulusAd, ozet.Rol, ozet.RolAd, ozet.Izinler, ozet.Menu);
+    }
+
     public async Task<GirisSonuc> KurulusSecAsync(int kullaniciId, int kurulusId, CancellationToken ct = default)
     {
         var kullanici = await _db.Kullanicilar.FirstOrDefaultAsync(k => k.Id == kullaniciId, ct)
@@ -198,10 +204,11 @@ public class KimlikServisi : IKimlikServisi
             : (aktif?.Rol ?? "Personel");
         var rolAd = await _yetki.RolAdiAsync(rol, ct) ?? rol;
         var izinler = await _yetki.IzinleriGetirAsync(rol, ct);
+        var menu = MenuKatalogu.Filtrele(izinler);
         return new KullaniciOzetDto(
             kullanici.Id, kullanici.KullaniciAdi, kullanici.Ad, kullanici.Soyad, kullanici.Eposta, kullanici.Telefon,
             rol, kullanici.AktifMi, kullanici.TcKimlikNo, kullanici.PersonelId,
-            aktif?.KurulusId, aktif?.Kurulus?.Ad, secim, rolAd, izinler);
+            aktif?.KurulusId, aktif?.Kurulus?.Ad, secim, rolAd, izinler, menu);
     }
 
     private async Task<List<Domain.Entities.KullaniciKurulus>> UyeleriGetir(int kullaniciId, CancellationToken ct) =>

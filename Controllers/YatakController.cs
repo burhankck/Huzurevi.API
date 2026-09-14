@@ -72,6 +72,7 @@ public class YatakController : TemelApiController
     }
 
     [HttpPost("ata")]
+    [Yetki("oda.atama")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> YatakAta(YatakAtamaIstek request, CancellationToken ct)
     {
@@ -81,6 +82,7 @@ public class YatakController : TemelApiController
     }
 
     [HttpPost("bosalt/{sakinId:int}")]
+    [Yetki("oda.atama")]
     [ProducesResponseType(typeof(ApiYanit<object?>), StatusCodes.Status200OK)]
     public async Task<IActionResult> YatakBosalt(int sakinId, YatakBosaltIstek istek, CancellationToken ct)
     {
